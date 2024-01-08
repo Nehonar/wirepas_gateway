@@ -1,0 +1,59 @@
+version: '3.7'
+
+volumes:
+    dbus-volume:
+
+services:
+  # DBUS SERCVICE
+  dbus-service:
+    image: wirepas/gateway_dbus_service:${GATEWAY_TAG:-latest}
+    container_name: dbus
+    restart: always
+    volumes:
+      - type: volume
+        source: dbus-volume
+        target: /var/run/dbus
+    logging:
+      driver: journald
+
+  # TRANSPORT SERVICE
+  transport-service:
+    image: wirepas/gateway_transport_service:${GATEWAY_TAG:-latest}
+    container_name: transport-service
+    environment:
+      WM_GW_ID: ${DOCKER_GATEWAY_ID}
+      WM_GW_MODEL: None
+      WM_GW_VERSION: None
+      WM_SERVICES_MQTT_HOSTNAME: emqx
+      WM_SERVICES_MQTT_PORT: 8083
+      WM_SERVICES_MQTT_USERNAME: ${emqxUser}
+      WM_SERVICES_MQTT_PASSWORD: ${emqxPass}
+    restart: always
+    depends_on:
+      - dbus-service
+    volumes:
+      - type: volume
+        source: dbus-volume
+        target: /var/run/dbus
+    logging:
+      driver: journald
+
+  # SINK SERVICE
+  sink-service:
+    image: wirepas/gateway_sink_service:${GATEWAY_TAG:-latest}
+    container_name: sink-service
+    restart: on-failure
+    depends_on:
+      - dbus-service
+    devices:
+      - /dev/ttyACM0:/dev/mysink
+    environment:
+      WM_GW_SINK_BAUDRATE:
+      WM_GW_SINK_ID:
+      WM_GW_SINK_UART_PORT: /dev/mysink
+    volumes:
+      - type: volume
+        source: dbus-volume
+        target: /var/run/dbus
+    logging:
+      driver: journald
